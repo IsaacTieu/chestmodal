@@ -2,5 +2,5 @@ physionet.org/
 delete/
 dataset/cxr-study-list.csv
 dataset/cxr-record-list.csv
-dataset/sampled_500_studies.csv
-mimic_subset/
+dataset/studies.csv
+dataset/mimic_subset/
