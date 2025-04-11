@@ -1,8 +1,6 @@
 physionet.org/
 delete/
-cxr-study-list.csv
-cxr-record-list.csv
-mimic-cxr-reports.zip
-sampled_500_studies.csv
-wget.exe
+dataset/cxr-study-list.csv
+dataset/cxr-record-list.csv
+dataset/sampled_500_studies.csv
 mimic_subset/
