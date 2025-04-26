@@ -3,11 +3,11 @@ import numpy as np
 
 
 def sample_studies():
-    record_df = pd.read_csv("cxr-record-list.csv")
-    study_df = pd.read_csv("cxr-study-list.csv")
+    record_df = pd.read_csv("dataset/cxr-record-list.csv")
+    study_df = pd.read_csv("dataset/cxr-study-list.csv")
 
     unique_studies = record_df['study_id'].unique()
-    sampled_studies = np.random.choice(unique_studies, size=10, replace=False)
+    sampled_studies = np.random.choice(unique_studies, size=500, replace=False)
 
     # each study may have multiple images, which creates multiple rows per study
     sampled_records = record_df[record_df['study_id'].isin(sampled_studies)]
