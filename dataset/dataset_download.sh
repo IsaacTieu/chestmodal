@@ -1,3 +1,6 @@
+#!/bin/bash
+
+
 echo -n "Enter your PhysioNet password: "
 read -s PASSWORD
 echo "" 
