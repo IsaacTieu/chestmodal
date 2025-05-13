@@ -66,3 +66,4 @@ class FusionModel(torch.nn.Module):
         text_outputs = self.text_encoder(input_ids=input_ids, attention_mask=attention_mask)
         text_features = text_outputs.last_hidden_state[:, 0, :]
         return self.text_projection(text_features)
+    
