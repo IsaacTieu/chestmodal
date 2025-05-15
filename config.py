@@ -1,3 +1,5 @@
+# config allows for easy hyperparameter changing/tuning
+
 class Config():
     image_encoder = "densenet121"
     text_encoder = "microsoft/BiomedVLP-CXR-BERT-specialized"
