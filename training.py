@@ -4,11 +4,14 @@ from PIL import Image
 import torch
 import numpy as np
 import pandas as pd
-import mimic_dataset
-import fusion_model
+from mimic_dataset import MimicDataset
+from fusion_model import FusionModel
 from ema import EMA
 from config import Config
 import tqdm
+import sklearn
+from transformers import AutoTokenizer
+from torchvision import transforms
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # The data has already been separated and processed. This script trains the model based off the sorted data.
@@ -164,6 +167,22 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
             all_preds = np.concatenate(all_preds, axis=0)
             all_labels = np.concatenate(all_labels, axis=0)
 
+            aucs = []
+            for i, label in enumerate(config.CHEXPERT_LABELS):
+                # Only calculate AUC if we have both positive and negative examples
+                if np.sum(all_labels[:, i]) > 0 and np.sum(all_labels[:, i]) < len(all_labels):
+                    try:
+                        auc = sklearn.roc_auc_score(all_labels[:, i], all_preds[:, i], multi_class='ovr', average='macro')
+                        aucs.append(auc)
+                    except Exception as e:
+                        print(f"Error calculating AUC for {label}: {e}")
+            
+            mean_auc = np.mean(aucs) if aucs else 0
+
+            print(f"\nEpoch {epoch+1}/{config.num_epochs}:")
+            print(f"Train Loss: {avg_total_loss:.4f} (Supervised: {avg_supervised_loss:.4f}, Unsupervised: {avg_unsupervised_loss:.4f})")
+            print(f"Val Loss: {val_loss:.4f}, Mean AUC: {mean_auc:.4f}, LR: {current_lr:.6f}")
+            
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 torch.save(model.state_dict(), best_model)
@@ -176,7 +195,92 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
 
 
 def training_loop():
-    pass
+    if (os.path.exists('processed_data/labeled_train.csv') and
+        os.path.exists('processed_data/unlabeled_train.csv') and
+        os.path.exists('processed_data/validation.csv') and
+        os.path.exists('processed_data/test.csv')):
+
+        print("Loading preprocessed data...")
+        labeled_df = pd.read_csv('processed_data/labeled_train.csv')
+        unlabeled_df = pd.read_csv('processed_data/unlabeled_train.csv')
+        val_df = pd.read_csv('processed_data/validation.csv')
+        test_df = pd.read_csv('processed_data/test.csv')
+    else:
+        print("Error loading data.")
+        return
+    
+    print(f"Data loaded: {len(labeled_df)} labeled train, {len(unlabeled_df)} unlabeled train, "
+          f"{len(val_df)} validation, {len(test_df)} test samples")
+    
+    tokenizer = AutoTokenizer.from_pretrained(config.text_encoder, trust_remote_code=True)
+
+    train_transform = transforms.Compose([
+        transforms.Resize((config.img_size, config.img_size)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(10),
+        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    val_transform = transforms.Compose([
+        transforms.Resize((config.img_size, config.img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    labeled_dataset = MimicDataset(labeled_df, tokenizer, transform=train_transform)
+    unlabeled_dataset = MimicDataset(unlabeled_df, tokenizer, transform=train_transform, include_labels=False)
+    val_dataset = MimicDataset(val_df, tokenizer, transform=val_transform)
+    test_dataset = MimicDataset(test_df, tokenizer, transform=val_transform)
+
+    labeled_dataloader = DataLoader(
+        labeled_dataset, 
+        batch_size=config.batch_size, 
+        shuffle=True, 
+        num_workers=4,
+        pin_memory=True
+    )
+    
+    unlabeled_dataloader = DataLoader(
+        unlabeled_dataset, 
+        batch_size=config.batch_size, 
+        shuffle=True, 
+        num_workers=4,
+        pin_memory=True
+    )
+    
+    val_dataloader = DataLoader(
+        val_dataset, 
+        batch_size=config.batch_size, 
+        shuffle=False, 
+        num_workers=4,
+        pin_memory=True
+    )
+    
+    test_dataloader = DataLoader(
+        test_dataset, 
+        batch_size=config.batch_size, 
+        shuffle=False, 
+        num_workers=4,
+        pin_memory=True
+    )
+
+    model = FusionModel.to(device)
+
+    model_path = os.path.join(config.output_dir, 'best_model.pt')
+    if os.path.exists(model_path) and input("Model checkpoint found. Load it? (y/n): ").lower() == 'y':
+        print(f"Loading model from {model_path}")
+        model.load_state_dict(torch.load(model_path, map_location=config.device))
+    else:
+        print("Training model...")
+        best_model_path = train(
+            labeled_dataloader, unlabeled_dataloader, val_dataloader, model, config
+        )
+        print(f"Training completed. Best model saved at {best_model_path}")
+        model.load_state_dict(torch.load(best_model_path))
+    
 
 if __name__ == "__main__":
     training_loop()
