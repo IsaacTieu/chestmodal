@@ -27,12 +27,13 @@ class EMA:
     
     def apply_shadow(self):
         """
-        Applys moving average to the parameter.
+        Apply moving average to the parameter.
         """
+        
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                self.backup[name] = param.data
+                self.backup[name] = param.data.clone()
                 param.data = self.shadow[name]
     
     def restore(self):
@@ -43,4 +44,4 @@ class EMA:
             if param.requires_grad:
                 assert name in self.backup
                 param.data = self.backup[name]
-            self.backup = {}
+        self.backup = {}

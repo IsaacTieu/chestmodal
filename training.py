@@ -12,10 +12,10 @@ import tqdm
 import sklearn
 from transformers import AutoTokenizer
 from torchvision import transforms
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # The data has already been separated and processed. This script trains the model based off the sorted data.
-
 
 config = Config()
 
@@ -57,20 +57,20 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
 
         labeled_iterator = iter(labeled_dataloader)
         unlabeled_iterator = iter(unlabeled_dataloader)
-        num_batches = min(len(labeled_dataloader), min(unlabeled_dataloader))
+        num_batches = min(len(labeled_dataloader), len(unlabeled_dataloader))
 
-        progress_bar = tqdm(range(num_batches), desc=f"Epoch {epoch+1}/{config.num_epochs}")
+        progress_bar = tqdm.tqdm(range(num_batches), desc=f"Epoch {epoch+1}/{config.num_epochs}")
 
         for batch_idx in progress_bar:
-            # Imabalance of labeled/unlabeled data, so we need to cycle through the iterators
+            # Imbalance of labeled/unlabeled data, so we need to cycle through the iterators
             try:
-                labeled_batch = next(labeled_dataloader)
+                labeled_batch = next(labeled_iterator)
             except StopIteration:
                 labeled_iterator = iter(labeled_dataloader)
                 labeled_batch = next(labeled_iterator)
             
             try:
-                unlabeled_batch = next(unlabeled_dataloader)
+                unlabeled_batch = next(unlabeled_iterator)
             except StopIteration:
                 unlabeled_iterator = iter(unlabeled_dataloader)
                 unlabeled_batch = next(unlabeled_iterator)
@@ -102,7 +102,7 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
             
             # Once the pseudo labels are generated, we do a forward pass on the student model.
             unlabeled_logits, _, _ = model(unlabeled_images, unlabeled_input_ids, unlabeled_attention_mask)
-            unsupervised_loss = consistency_loss(torch.sigmoid(unlabeled_logits, pseudo_labels))
+            unsupervised_loss = consistency_loss(torch.sigmoid(unlabeled_logits), pseudo_labels)
 
             # Starts off as 0, and then increase to config.consistency_weight after 20% of the total training is done
             # Serves to minimize the impact of the bad initial pseudo labels on the model
@@ -131,68 +131,66 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
                 "u_loss": f"{unsupervised_loss.item():.4f}"
             })
 
-            avg_total_loss = total_loss / num_batches
-            avg_supervised_loss = supervised_losses / num_batches
-            avg_unsupervised_loss = unsupervised_losses / num_batches
+        avg_total_loss = total_loss / num_batches
+        avg_supervised_loss = supervised_losses / num_batches
+        avg_unsupervised_loss = unsupervised_losses / num_batches
 
-            model.eval()
-            val_loss = 0
-            all_preds = []
-            all_labels = []
+        model.eval()
+        val_loss = 0
+        all_preds = []
+        all_labels = []
 
-            with torch.no_grad():
-                for batch in val_dataloader:
-                    images = batch['image'].to(device)
-                    input_ids = batch['input_ids'].to(device)
-                    labels = batch['labels'].to(device)
-                    attention_mask = batch['attention_mask'].to(device)
+        with torch.no_grad():
+            for batch in val_dataloader:
+                images = batch['image'].to(device)
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                labels = batch['labels'].to(device)
 
-                    logits, _, _ = model(images, input_ids, attention_mask)
-                    loss = criterion(logits, labels)
+                logits, _, _ = model(images, input_ids, attention_mask)
+                loss = criterion(logits, labels)
 
-                    if not torch.isnan(loss):
-                        val_loss += loss.item()
-                    
-                    preds = torch.sigmoid(logits).cpu().numpy()
-                    all_preds.append(preds)
-                    all_labels.append(labels.cpu().numpy())
+                if not torch.isnan(loss):
+                    val_loss += loss.item()
+                
+                preds = torch.sigmoid(logits).cpu().numpy()
+                all_preds.append(preds)
+                all_labels.append(labels.cpu().numpy())
 
-            val_loss /= len(val_dataloader)
-            scheduler.step(val_loss)
-            current_lr = optimizer.param_groups[0]['lr']
+        val_loss /= len(val_dataloader)
+        scheduler.step(val_loss)
+        current_lr = optimizer.param_groups[0]['lr']
 
-            history['train_loss'].append(avg_total_loss)
-            history['val_loss'].append(val_loss)
-            history['learning_rate'].append(current_lr)
-            all_preds = np.concatenate(all_preds, axis=0)
-            all_labels = np.concatenate(all_labels, axis=0)
+        history['train_loss'].append(avg_total_loss)
+        history['val_loss'].append(val_loss)
+        history['learning_rate'].append(current_lr)
+        all_preds = np.concatenate(all_preds, axis=0)
+        all_labels = np.concatenate(all_labels, axis=0)
 
-            aucs = []
-            for i, label in enumerate(config.CHEXPERT_LABELS):
-                # Only calculate AUC if we have both positive and negative examples
-                if np.sum(all_labels[:, i]) > 0 and np.sum(all_labels[:, i]) < len(all_labels):
-                    try:
-                        auc = sklearn.roc_auc_score(all_labels[:, i], all_preds[:, i], multi_class='ovr', average='macro')
-                        aucs.append(auc)
-                    except Exception as e:
-                        print(f"Error calculating AUC for {label}: {e}")
-            
-            mean_auc = np.mean(aucs) if aucs else 0
+        aucs = []
+        for i, label in enumerate(config.CHEXPERT_LABELS):
+            # Only calculate AUC if we have both positive and negative examples
+            if np.sum(all_labels[:, i]) > 0 and np.sum(all_labels[:, i]) < len(all_labels):
+                try:
+                    auc = sklearn.metrics.roc_auc_score(all_labels[:, i], all_preds[:, i])
+                    aucs.append(auc)
+                except Exception as e:
+                    print(f"Error calculating AUC for {label}: {e}")
+        
+        mean_auc = np.mean(aucs) if aucs else 0
 
-            print(f"\nEpoch {epoch+1}/{config.num_epochs}:")
-            print(f"Train Loss: {avg_total_loss:.4f} (Supervised: {avg_supervised_loss:.4f}, Unsupervised: {avg_unsupervised_loss:.4f})")
-            print(f"Val Loss: {val_loss:.4f}, Mean AUC: {mean_auc:.4f}, LR: {current_lr:.6f}")
-            
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                torch.save(model.state_dict(), best_model)
-                print(f"Model saved to {best_model}")
-            
-            pd.DataFrame(history).to_csv(os.path.join(config.output_dir, 'training_history.csv'), index=False)
+        print(f"\nEpoch {epoch+1}/{config.num_epochs}:")
+        print(f"Train Loss: {avg_total_loss:.4f} (Supervised: {avg_supervised_loss:.4f}, Unsupervised: {avg_unsupervised_loss:.4f})")
+        print(f"Val Loss: {val_loss:.4f}, Mean AUC: {mean_auc:.4f}, LR: {current_lr:.6f}")
+        
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), best_model)
+            print(f"Model saved to {best_model}")
+        
+        pd.DataFrame(history).to_csv(os.path.join(config.output_dir, 'training_history.csv'), index=False)
 
-            return best_model
-
-
+    return best_model
 
 def training_loop():
     if (os.path.exists('processed_data/labeled_train.csv') and
@@ -215,7 +213,7 @@ def training_loop():
     tokenizer = AutoTokenizer.from_pretrained(config.text_encoder, trust_remote_code=True)
 
     train_transform = transforms.Compose([
-        transforms.Resize((config.img_size, config.img_size)),
+        transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
         transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
@@ -225,7 +223,7 @@ def training_loop():
     ])
     
     val_transform = transforms.Compose([
-        transforms.Resize((config.img_size, config.img_size)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -267,16 +265,17 @@ def training_loop():
         pin_memory=True
     )
 
-    model = FusionModel.to(device)
+    model = FusionModel()
+    model.to(device)
 
     model_path = os.path.join(config.output_dir, 'best_model.pt')
     if os.path.exists(model_path) and input("Model checkpoint found. Load it? (y/n): ").lower() == 'y':
         print(f"Loading model from {model_path}")
-        model.load_state_dict(torch.load(model_path, map_location=config.device))
+        model.load_state_dict(torch.load(model_path, map_location=device))
     else:
         print("Training model...")
         best_model_path = train(
-            labeled_dataloader, unlabeled_dataloader, val_dataloader, model, config
+            model, labeled_dataloader, unlabeled_dataloader, val_dataloader, config
         )
         print(f"Training completed. Best model saved at {best_model_path}")
         model.load_state_dict(torch.load(best_model_path))

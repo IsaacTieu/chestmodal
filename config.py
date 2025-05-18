@@ -17,7 +17,8 @@ class Config():
     weight_decay = 1e-4
     ema_decay = 0.999
     consistency_weight = 0.5
-    clip_hrad_norm = 1.0
+    clip_grad_norm = 1.0
 
     num_epochs = 10
+    batch_size = 16
     
