@@ -231,7 +231,6 @@ def training_loop():
     labeled_dataset = MimicDataset(labeled_df, tokenizer, transform=train_transform)
     unlabeled_dataset = MimicDataset(unlabeled_df, tokenizer, transform=train_transform, include_labels=False)
     val_dataset = MimicDataset(val_df, tokenizer, transform=val_transform)
-    test_dataset = MimicDataset(test_df, tokenizer, transform=val_transform)
 
     labeled_dataloader = DataLoader(
         labeled_dataset, 
@@ -251,14 +250,6 @@ def training_loop():
     
     val_dataloader = DataLoader(
         val_dataset, 
-        batch_size=config.batch_size, 
-        shuffle=False, 
-        num_workers=4,
-        pin_memory=True
-    )
-    
-    test_dataloader = DataLoader(
-        test_dataset, 
         batch_size=config.batch_size, 
         shuffle=False, 
         num_workers=4,
