@@ -19,6 +19,6 @@ class Config():
     consistency_weight = 0.5
     clip_grad_norm = 1.0
 
-    num_epochs = 10
+    num_epochs = 25
     batch_size = 16
     

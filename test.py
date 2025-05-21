@@ -1,6 +1,6 @@
 from config import Config
 import torch
-import tqdm
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, accuracy_score
@@ -23,7 +23,7 @@ def test(model, test_dataloader, config):
     with torch.no_grad():
         for batch in tqdm(test_dataloader, desc="testing"):
             images = batch['image'].to(device)
-            input_ids = batch['innput_ids'].to(device)
+            input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['labels'].to(device)
             study_ids = batch['study_id']
@@ -46,39 +46,44 @@ def test(model, test_dataloader, config):
 
     mean_metrics = {'auc': [], 'acc': [], 'prec': [], 'rec': [], 'f1': []}
 
-    for i, label in enumerate(CHEXPERT_LABELS):
-        # Binary predictions (threshold = 0.5)
-        binary_preds = (all_preds[:, i] > 0.5).astype(int)
-        
-        # Calculate metrics if we have positive examples
-        if np.sum(all_labels[:, i]) > 0 and np.sum(all_labels[:, i]) < len(all_labels):
-            try:
-                # Fixed: Calculate AUC for binary classification (no multi_class parameter needed)
-                auc = roc_auc_score(all_labels[:, i], all_preds[:, i])
-                acc = accuracy_score(all_labels[:, i], binary_preds)
-                prec, rec, f1, _ = precision_recall_fscore_support(all_labels[:, i], binary_preds, average='binary', zero_division=0)
-                
-                mean_metrics['auc'].append(auc)
-                mean_metrics['acc'].append(acc)
-                mean_metrics['prec'].append(prec)
-                mean_metrics['rec'].append(rec)
-                mean_metrics['f1'].append(f1)
-                
-                print(f"{label:<25} {auc:<10.4f} {acc:<10.4f} {prec:<10.4f} {rec:<10.4f} {f1:<10.4f}")
-                
-                results.append({
-                    'pathology': label,
-                    'auc': auc,
-                    'accuracy': acc,
-                    'precision': prec,
-                    'recall': rec,
-                    'f1': f1
-                })
-            except Exception as e:
-                print(f"Error calculating metrics for {label}: {e}")
-                print(f"{label:<25} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10}")
-        else:
-            print(f"{label:<25} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10}")
+    for i, label in enumerate(config.CHEXPERT_LABELS):
+            # Get the mask of valid examples (ignoring -1 values which represent uncertainty)
+            valid_mask = all_labels[:, i] != -1
+            valid_labels = all_labels[valid_mask, i]
+            valid_preds = all_preds[valid_mask, i]
+            
+            # Only calculate AUC if we have both positive and negative examples after filtering
+            if len(valid_labels) > 0 and np.sum(valid_labels) > 0 and np.sum(valid_labels) < len(valid_labels):
+                try:
+
+                    binary_preds = (valid_preds > 0.5).astype(int)
+                    # This is binary classification so we don't need to specify multi_class
+                    # Each condition is treated as a separate binary classification problem
+                    auc = roc_auc_score(valid_labels, valid_preds)
+                    acc = accuracy_score(valid_labels, binary_preds)
+                    prec, rec, f1, _ = precision_recall_fscore_support(valid_labels, binary_preds, average='binary', zero_division=0)
+                                    
+                    mean_metrics['auc'].append(auc)
+                    mean_metrics['acc'].append(acc)
+                    mean_metrics['prec'].append(prec)
+                    mean_metrics['rec'].append(rec)
+                    mean_metrics['f1'].append(f1)
+
+                    print(f"{label:<25} {auc:<10.4f} {acc:<10.4f} {prec:<10.4f} {rec:<10.4f} {f1:<10.4f}")
+                    
+                    results.append({
+                        'pathology': label,
+                        'auc': auc,
+                        'accuracy': acc,
+                        'precision': prec,
+                        'recall': rec,
+                        'f1': f1
+                    })
+                except Exception as e:
+                    print(f"Error calculating metrics for {label}: {e}")
+                    print(f"{label:<25} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10} {'ERROR':<10}")
+            else:
+                print(f"{label:<25} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10}")
     
     # Print mean metrics
     if mean_metrics['auc']:
@@ -127,9 +132,10 @@ if __name__ == "__main__":
     model = FusionModel()
     model.to(device)
     model_path = os.path.join(cfg.output_dir, 'best_model.pt')
+    state_dict = torch.load(model_path, map_location=device)
+    model.load_state_dict(state_dict)
 
 
-    model = model.load_state_dict(torch.load(model_path, map_location=device))
     test_dataloader = DataLoader(
         test_dataset, 
         batch_size=cfg.batch_size, 
