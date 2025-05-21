@@ -41,11 +41,14 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
         optimizer, 'min', patience=3, factor=0.5, min_lr=1e-7
     )
     best_val_loss = float('inf')
+    best_val_auc = 0.0
     best_model = os.path.join(config.output_dir, 'best_model.pt')
+    best_model_auc = os.path.join(config.output_dir, 'best_model_auc.pt')
 
     history = {
         'train_loss': [],
         'val_loss': [],
+        'val_auc': [],
         'learning_rate': []
     }
 
@@ -169,15 +172,24 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
 
         aucs = []
         for i, label in enumerate(config.CHEXPERT_LABELS):
-            # Only calculate AUC if we have both positive and negative examples
-            if np.sum(all_labels[:, i]) > 0 and np.sum(all_labels[:, i]) < len(all_labels):
+            # Get the mask of valid examples (ignoring -1 values which represent uncertainty)
+            valid_mask = all_labels[:, i] != -1
+            valid_labels = all_labels[valid_mask, i]
+            valid_preds = all_preds[valid_mask, i]
+            
+            # Only calculate AUC if we have both positive and negative examples after filtering
+            if len(valid_labels) > 0 and np.sum(valid_labels) > 0 and np.sum(valid_labels) < len(valid_labels):
                 try:
-                    auc = sklearn.metrics.roc_auc_score(all_labels[:, i], all_preds[:, i])
+                    # This is binary classification so we don't need to specify multi_class
+                    # Each condition is treated as a separate binary classification problem
+                    auc = sklearn.metrics.roc_auc_score(valid_labels, valid_preds)
                     aucs.append(auc)
+                    print(f"AUC for {label}: {auc:.4f} (from {len(valid_labels)} valid samples)")
                 except Exception as e:
                     print(f"Error calculating AUC for {label}: {e}")
         
         mean_auc = np.mean(aucs) if aucs else 0
+        history['val_auc'].append(mean_auc)
 
         print(f"\nEpoch {epoch+1}/{config.num_epochs}:")
         print(f"Train Loss: {avg_total_loss:.4f} (Supervised: {avg_supervised_loss:.4f}, Unsupervised: {avg_unsupervised_loss:.4f})")
@@ -187,6 +199,11 @@ def train(model, labeled_dataloader, unlabeled_dataloader, val_dataloader, confi
             best_val_loss = val_loss
             torch.save(model.state_dict(), best_model)
             print(f"Model saved to {best_model}")
+        
+        if mean_auc > best_val_auc and mean_auc > 0:
+            best_val_auc = mean_auc
+            torch.save(model.state_dict(), best_model_auc)
+            print(f"Model saved to {best_model_auc} (Best val AUC: {best_val_auc:.4f})")
         
         pd.DataFrame(history).to_csv(os.path.join(config.output_dir, 'training_history.csv'), index=False)
 
@@ -209,6 +226,14 @@ def training_loop():
     
     print(f"Data loaded: {len(labeled_df)} labeled train, {len(unlabeled_df)} unlabeled train, "
           f"{len(val_df)} validation, {len(test_df)} test samples")
+
+    
+    print("Checking label distribution...")
+    for col in config.CHEXPERT_LABELS:
+        if col in labeled_df.columns:
+            print(f"{col}: {labeled_df[col].value_counts().to_dict()}")
+        else:
+            print(f"Warning: {col} not found in labeled data")
     
     tokenizer = AutoTokenizer.from_pretrained(config.text_encoder, trust_remote_code=True)
 
