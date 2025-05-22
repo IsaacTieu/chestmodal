@@ -29,4 +29,4 @@ EXPOSE 8000
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["conda", "run", "--no-capture-output", "-n", "chestmodal", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["conda", "run", "--no-capture-output", "-n", "chestmodal", "uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]
