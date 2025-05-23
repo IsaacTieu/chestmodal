@@ -14,13 +14,16 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY environment.yml .
+COPY app/environment.yml .
 
 RUN conda env create -f environment.yml
 
 SHELL ["conda", "run", "-n", "chestmodal", "/bin/bash", "-c"]
 
-COPY . .
+COPY app/ .
+COPY fusion_model.py .
+COPY config.py .
+COPY mimic_fusion_model/ ./mimic_fusion_model/
 
 RUN mkdir -p /app/models
 
@@ -29,4 +32,4 @@ EXPOSE 8000
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["conda", "run", "--no-capture-output", "-n", "chestmodal", "uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["conda", "run", "--no-capture-output", "-n", "chestmodal", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
