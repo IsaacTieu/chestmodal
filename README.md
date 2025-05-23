@@ -18,43 +18,52 @@ The model follows a multimodal architecture:
 
 ## Training
 
-The model was trained with semi-supervised learning techniques. I ran into issues with exploding gradients, which was fixed with Xavier initialization. Exponential Moving Average (EMA) was also used to help stabilize the parameters and increase generalizability. This was trained on a subset of 500 images and their corresponding text reports over 25 epochs. To improve metrics, the dataset can be migrated to the cloud and trained on an HPC for more epochs.
+- The model was trained with semi-supervised learning techniques
+- I ran into issues with exploding gradients, which was fixed with Xavier initialization
+- Exponential Moving Average (EMA) was also used to help stabilize the parameters and increase generalizability
+- This was trained on a subset of 500 images and their corresponding text reports over 25 epochs
+- To improve metrics, the dataset can be migrated to the cloud and trained on an HPC for more epochs
 
 ## 🚀 How to Run
 
 1. Clone the repository
-2. Install dependencies from `requirements.txt`
-3. Prepare the dataset and pre-process DICOM + text files
-4. Train or evaluate the model using:
+2. Install dependencies from `environment.yml`
+3. Prepare the dataset with the instructions in `dataset`
+4. Pre-process DICOM + text files with `process_data.py`
+5. Ensure that there are four `csv` files in `processed_data`
+6. Train or evaluate the model using:
    ```bash
-   python train.py --config config.yaml
+   python training.py
    ```
 
 ## 🧪 Test Results
 
 **Test Performance by Pathology:**
 
-| Pathology                  | AUC    | Accuracy | Precision | Recall  | F1     |
-|---------------------------|--------|----------|-----------|---------|--------|
-| No Finding                | 0.8974 | 0.8629   | 0.5667    | 0.8095  | 0.6667 |
-| Enlarged Cardiomediastinum | 0.4792 | 0.6727   | 0.0625    | 0.2500  | 0.1000 |
-| Cardiomegaly              | 0.6876 | 0.5948   | 0.3333    | 0.8077  | 0.4719 |
-| Lung Opacity              | 0.7641 | 0.6833   | 0.5441    | 0.8409  | 0.6607 |
-| Lung Lesion               | 0.3588 | 0.7742   | 0.0000    | 0.0000  | 0.0000 |
-| Edema                     | 0.5979 | 0.5630   | 0.2545    | 0.5600  | 0.3500 |
-| Consolidation             | 0.6389 | 0.6581   | 0.1220    | 0.5556  | 0.2000 |
-| Pneumonia                 | 0.4746 | 0.2358   | 0.1959    | 0.8636  | 0.3193 |
-| Atelectasis               | 0.8684 | 0.6121   | 0.3919    | 1.0000  | 0.5631 |
-| Pneumothorax              | 0.5746 | 0.7295   | 0.0370    | 0.1250  | 0.0571 |
-| Pleural Effusion          | 0.8739 | 0.7521   | 0.5179    | 0.9062  | 0.6591 |
-| Pleural Other             | 0.4918 | 0.8387   | 0.0500    | 0.5000  | 0.0909 |
-| Fracture                  | 0.5734 | 0.6774   | 0.0526    | 0.3333  | 0.0909 |
-| Support Devices           | 0.8254 | 0.7642   | 0.6316    | 0.8182  | 0.7129 |
-| **Mean**                  | **0.6504** | **0.6728** | **0.2686** | **0.5979** | **0.3530** |
+| Pathology                  | AUC    | Accuracy |
+|---------------------------|--------|----------|
+| No Finding                | 0.8974 | 0.8629   |
+| Enlarged Cardiomediastinum | 0.4792 | 0.6727   |
+| Cardiomegaly              | 0.6876 | 0.5948   |
+| Lung Opacity              | 0.7641 | 0.6833   |
+| Lung Lesion               | 0.3588 | 0.7742   |
+| Edema                     | 0.5979 | 0.5630   |
+| Consolidation             | 0.6389 | 0.6581   |
+| Pneumonia                 | 0.4746 | 0.2358   |
+| Atelectasis               | 0.8684 | 0.6121   |
+| Pneumothorax              | 0.5746 | 0.7295   |
+| Pleural Effusion          | 0.8739 | 0.7521   |
+| Pleural Other             | 0.4918 | 0.8387   |
+| Fracture                  | 0.5734 | 0.6774   |
+| Support Devices           | 0.8254 | 0.7642   |
+| **Mean**                  | **0.6504** | **0.6728** |
+
 
 ## Deployment
 
-This model was containerized into a Dockerfile and deployed with FastAPI. Get and predict endpoints were created, which can be scaled to deploy this model on a variety of platforms.
+- This model was containerized into a Dockerfile and deployed with FastAPI
+- Get and predict endpoints were created, which can be scaled to deploy this model on a variety of platforms
+- Visit `app` for instructions
 
 
 ## 📌 Future Work
