@@ -1,6 +1,6 @@
 # Radiology Image Classification with Multimodal Learning
 
-This project highlights a deep learning model to classify radiology conditions from chest X-ray images (in DICOM format) and associated radiology reports. It utilizes both image and text data to improve diagnostic performance across multiple pathologies. The weights can be found in `Release`
+This project highlights a deep learning model to classify radiology conditions from chest X-ray images (in DICOM format) and associated radiology reports. It utilizes both image and text data to improve diagnostic performance across multiple pathologies. The weights can be found in `Releases`
 
 ## 📁 Dataset
 
