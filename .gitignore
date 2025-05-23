@@ -5,3 +5,4 @@ dataset/cxr-record-list.csv
 dataset/studies.csv
 dataset/mimic_subset/
 processed_data/
+__pycache__/
