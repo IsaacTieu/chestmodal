@@ -8,7 +8,7 @@ The model is trained and evaluated on the **MIMIC-CXR** dataset, which contains:
 - Chest X-ray images in DICOM format
 - Corresponding radiology reports in text format
 
-## 🧠 Model Overview
+## Model Overview
 
 The model follows a multimodal architecture:
 - **Vision Encoder:** CNN-based model for processing DICOM images
@@ -24,7 +24,7 @@ The model follows a multimodal architecture:
 - This was trained on a subset of 500 images and their corresponding text reports over 25 epochs
 - To improve metrics, the dataset can be migrated to the cloud and trained on an HPC for more epochs
 
-## 🚀 How to Run
+## How to Run
 
 1. Clone the repository
 2. Install dependencies from `environment.yml`
@@ -36,7 +36,7 @@ The model follows a multimodal architecture:
    python training.py
    ```
 
-## 🧪 Test Results
+## Test Results
 
 **Test Performance by Pathology:**
 
@@ -66,12 +66,8 @@ The model follows a multimodal architecture:
 - Visit `app` for instructions
 
 
-## 📌 Future Work
+## Future Work
 
 - Improve classification for underperforming classes (e.g., Lung Lesion, Pleural Other)
 - Incorporate clinical metadata
 - Explore attention-based fusion techniques
-
-## 🤝 Contributions
-
-Pull requests are welcome! For major changes, please open an issue first to discuss your ideas.
